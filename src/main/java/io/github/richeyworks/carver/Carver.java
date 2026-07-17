@@ -91,9 +91,7 @@ public final class Carver<K, V> {
             if (survivors.isEmpty()) {
                 break;
             }
-            survivors.retainAll(p.stab()
-                    ? store.stab(p.index(), p.lo())
-                    : store.overlapping(p.index(), p.lo(), p.hi()));
+            survivors.retainAll(spanWalk(p));
         }
         if (q.hasPrimaryRange() && plan.path() != AccessPath.PRIMARY_RANGE
                 && !survivors.isEmpty()) {
@@ -142,8 +140,7 @@ public final class Carver<K, V> {
                 boolean stab = plan.path() == AccessPath.INTERVAL_STAB;
                 for (Query.SpanPred p : q.spans) {
                     if (p.stab() == stab && p.index().equals(plan.index())) {
-                        return stab ? store.stab(p.index(), p.lo())
-                                    : store.overlapping(p.index(), p.lo(), p.hi());
+                        return spanWalk(p);
                     }
                 }
                 throw new IllegalStateException("plan names interval '" + plan.index()
@@ -155,6 +152,23 @@ public final class Carver<K, V> {
                 }
                 return collectRange(store.primary().firstKey(), store.primary().lastKey());
         }
+    }
+
+    /**
+     * One interval walk, routed to the store overload the predicate targets: {@code int}
+     * predicates unbox explicitly so overload resolution picks the {@code int} surface;
+     * typed predicates flow through the generic surface (the store's comparator does the
+     * type checking).
+     */
+    private List<K> spanWalk(Query.SpanPred p) {
+        if (p.typed()) {
+            return p.stab() ? store.stab(p.index(), p.lo())
+                            : store.overlapping(p.index(), p.lo(), p.hi());
+        }
+        int lo = ((Integer) p.lo()).intValue();
+        int hi = ((Integer) p.hi()).intValue();
+        return p.stab() ? store.stab(p.index(), lo)
+                        : store.overlapping(p.index(), lo, hi);
     }
 
     private List<K> collectRange(K lo, K hi) throws IOException {

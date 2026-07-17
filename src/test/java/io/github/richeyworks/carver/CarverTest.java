@@ -29,6 +29,9 @@ class CarverTest {
 
     private static final String ATTR = "attr";
     private static final String SPAN = "span";
+    private static final String WHEN = "when";                        // typed (Long) twin of SPAN
+    /** Base far above Integer.MAX_VALUE so any int truncation in the typed path fails loudly. */
+    private static final long EPOCH = 1_720_000_000_000L;
     private static final long SEED = 42;
     private static final int N = 300;
 
@@ -49,6 +52,8 @@ class CarverTest {
         return IndexedStore.open(dir, opts())
                 .secondary(ATTR, Comparator.<Integer>naturalOrder(), CarverTest::attrOf)
                 .interval(SPAN, CarverTest::startOf, CarverTest::endOf)
+                .interval(WHEN, Comparator.<Long>naturalOrder(),
+                        v -> EPOCH + startOf(v), v -> EPOCH + endOf(v))
                 .build();
     }
 
@@ -197,6 +202,34 @@ class CarverTest {
             assertTrue(Math.abs(refined - actual) <= Math.abs(prior - actual),
                     "estimate should not move away from the observed actual");
             assertTrue(oracle.size() > 0, "populate() must leave live records");
+        }
+    }
+
+    @Test
+    void typedIntervalPredicatesMatchOracle(@TempDir Path dir) throws IOException {
+        try (IndexedStore<Long, String> store = open(dir)) {
+            TreeMap<Long, String> oracle = populate(store);
+            Carver<Long, String> carver = Carver.over(store);
+            long qlo = EPOCH + 2_000, qhi = EPOCH + 7_000;
+
+            List<Long> expected = new ArrayList<>();
+            for (Map.Entry<Long, String> e : oracle.entrySet()) {
+                String v = e.getValue();
+                long s = EPOCH + startOf(v);
+                long t = EPOCH + endOf(v);
+                if (s <= qhi && t >= qlo && attrOf(v) <= 3) {
+                    expected.add(e.getKey());
+                }
+            }
+            List<Long> actual = carver.query()
+                    .overlapping(WHEN, qlo, qhi)                      // typed (Long) span walk
+                    .whereBetween(ATTR, 0, 3)
+                    .keys();
+            assertEquals(expected, sorted(actual));
+
+            // The typed index is SPAN shifted by EPOCH, so typed stab must agree with int stab.
+            assertEquals(sorted(carver.query().stabbing(SPAN, 5_000).keys()),
+                         sorted(carver.query().stabbing(WHEN, EPOCH + 5_000L).keys()));
         }
     }
 

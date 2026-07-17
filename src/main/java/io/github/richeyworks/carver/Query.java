@@ -21,7 +21,12 @@ public final class Query<K, V> {
 
     record AttrPred(String index, Object lo, Object hi) { }
 
-    record SpanPred(String index, int lo, int hi, boolean stab) { }
+    /**
+     * One interval predicate. {@code typed=false} → the store's {@code int} interval index
+     * (endpoints are boxed {@code Integer}s); {@code typed=true} → a typed-endpoint index
+     * declared via the store's generic {@code interval} overload.
+     */
+    record SpanPred(String index, Object lo, Object hi, boolean stab, boolean typed) { }
 
     private final Carver<K, V> carver;
 
@@ -55,18 +60,37 @@ public final class Query<K, V> {
         return this;
     }
 
-    /** Records whose {@code index} span overlaps {@code [lo, hi]} (closed). */
+    /** Records whose {@code int} {@code index} span overlaps {@code [lo, hi]} (closed). */
     public Query<K, V> overlapping(String index, int lo, int hi) {
         if (lo > hi) {
             throw new IllegalArgumentException("lo " + lo + " > hi " + hi);
         }
-        spans.add(new SpanPred(Objects.requireNonNull(index, "index"), lo, hi, false));
+        spans.add(new SpanPred(Objects.requireNonNull(index, "index"), lo, hi, false, false));
         return this;
     }
 
-    /** Records whose {@code index} span contains {@code point}. */
+    /** Records whose {@code int} {@code index} span contains {@code point}. */
     public Query<K, V> stabbing(String index, int point) {
-        spans.add(new SpanPred(Objects.requireNonNull(index, "index"), point, point, true));
+        spans.add(new SpanPred(Objects.requireNonNull(index, "index"), point, point, true, false));
+        return this;
+    }
+
+    /**
+     * Records whose TYPED {@code index} span overlaps {@code [lo, hi]} (closed) — for interval
+     * indexes declared with the store's generic overload (epoch-millis {@code Long}s and the
+     * like). Endpoint ordering — including {@code lo <= hi} — is validated by the store's
+     * comparator at execution.
+     */
+    public <P> Query<K, V> overlapping(String index, P lo, P hi) {
+        spans.add(new SpanPred(Objects.requireNonNull(index, "index"),
+                Objects.requireNonNull(lo, "lo"), Objects.requireNonNull(hi, "hi"), false, true));
+        return this;
+    }
+
+    /** Records whose TYPED {@code index} span contains {@code point}. */
+    public <P> Query<K, V> stabbing(String index, P point) {
+        Objects.requireNonNull(point, "point");
+        spans.add(new SpanPred(Objects.requireNonNull(index, "index"), point, point, true, true));
         return this;
     }
 

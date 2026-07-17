@@ -31,8 +31,10 @@ terminal (PowerShell). Stale `.git/index.lock` fix: `Remove-Item .git\index.lock
   bandit selector.
 
 ## Roadmap seams (measure before cutting — the ring's rule)
-- JMH source set once there is a real question to measure (plan quality vs. oracle-best path).
+- The measure rig is live: `./gradlew jmh` runs `PlanQualityBenchmark` (planned vs
+  hand-written oracle-best vs naive-worst per query shape, plus plan-only latency).
+  `build`/`check` compiles the jmh source set; new planner behavior needs a benchmark row.
 - A `countByAttribute` seam on `IndexedStore` would make secondary estimates exact — propose
-  it upstream only with a benchmark showing the prior misleads the planner.
+  it upstream only if the JMH rows show the prior misleads the planner.
 - Bandit-style plan choice (explore/exploit over near-tied candidates) can reuse
   SuperBeefSort's selector machinery when estimates are close.

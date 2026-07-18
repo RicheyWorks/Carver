@@ -1,5 +1,9 @@
 # Carver
 
+[![CI](https://github.com/RicheyWorks/Carver/actions/workflows/ci.yml/badge.svg)](https://github.com/RicheyWorks/Carver/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Java 17](https://img.shields.io/badge/Java-17-orange.svg)](https://adoptium.net/)
+
 The fourth engine of the ecosystem: a **cost-based read planner** over a
 [SmokeHouse](../SmokeHouse) `IndexedStore`. SmokeHouse preserves, [CSRBT](../CSRBT) orders,
 [SuperBeefSort](../SuperBeefSort) feeds — **Carver decides how to read.**
@@ -36,6 +40,27 @@ Plan plan = carver.query().where("attr", 3).explain();
   observed actuals (`PlanStats`); reuse one `Carver` so evidence accumulates.
 - **Honest consistency.** Each underlying walk is single-writer-consistent as always; a
   multi-predicate query is per-walk consistent, not transactional across walks.
+- **Typed intervals too.** `overlapping`/`stabbing` have typed overloads riding SmokeHouse's
+  generic interval tier — epoch-millis `Long` spans plan and execute exactly like int spans.
+
+## Measured, not asserted
+
+`./gradlew jmh` runs `PlanQualityBenchmark`: the planner's end-to-end cost (`planned`) against
+a hand-written oracle-best drive and a naive-worst drive per query shape, plus `planOnly` for
+the planning latency itself. The claims are falsifiable: `planned` ≈ `oracleBest` on both
+shapes, both ≪ `naiveWorst`, `planOnly` in the noise. `build` compiles the benchmarks, so the
+rig can't rot.
+
+## The ecosystem
+
+| Engine | Role |
+|---|---|
+| [CSRBT](https://github.com/RicheyWorks/CSRBT) | the adaptive ordered index |
+| [SuperBeefSort](https://github.com/RicheyWorks/SuperBeefSort) | the intake tract — profiles, sorts, feeds |
+| [SmokeHouse](https://github.com/RicheyWorks/SmokeHouse) | the log-structured store — tail, watchers, replicas |
+| **Carver** (this repo) | the read planner — decides how to read |
+| [Renderer](https://github.com/RicheyWorks/Renderer) | the materialized-view engine over the tail |
+| [Brine](https://github.com/RicheyWorks/Brine) | the adaptive cache with an evolved eviction policy |
 
 ## Build
 
